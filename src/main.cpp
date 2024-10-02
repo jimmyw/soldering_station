@@ -31,9 +31,14 @@ double integral = 0;
 double setpoint = 300.0;             // Desired temperature in Celsius
 const double integral_limit = 100.0; // Maximum integral value in power %
 uint8_t error_flags = 0;
+static volatile uint8_t reading_temperature = 0;
 
-#define ERROR_NO_READING 8
-#define ERROR_BAD_FREQUENCY 16 // No zero cross detected
+#define ERROR_NO_READING 1 // Thermocouple fault
+#define ERROR_BAD_FREQUENCY 2 // Frequency out of range
+const char *error_names[] = {
+    "NO_READING",
+    "BAD_FREQUENCY",
+};
 
 const float GAIN =
     201.0; // Amplification gain from the LTC2063 R1 = 200 kΩ, R2 = 1 kΩ
@@ -50,21 +55,25 @@ float correct_temperature(float reported_temperature) {
   return (slope * reported_temperature) + intercept;
 }
 
-const char *error_names[] = {
-    "NO_READING",
-    "BAD_FREQUENCY",
-};
 
+uint32_t off_time = 0;
 void handlePin10Interrupt() {
   // Your interrupt handling code here
   // For example, toggle an LED or set a flag
   if (digitalRead(PIN_ZERO_CROSS) == HIGH) {
     interrupt_count++;
 
-    if ((interrupt_count % 100) >= (100 - power_percent) && error_flags == 0)
+    if ((interrupt_count % 100) >= (100 - power_percent) && error_flags == 0 &&
+        reading_temperature == 0) {
+      if (off_time > 0)
+        off_time = 0;
       digitalWrite(PIN_HEATER, PIN_HEATER_ON);
-    else
+
+    } else {
+      if (off_time == 0)
+        off_time = millis();
       digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
+    }
   }
 }
 
@@ -106,7 +115,7 @@ static void set_error_flag(uint8_t flag) {
   for (uint8_t i = 0; i < ARRAY_SIZE(error_names); i++) {
     if (flag & (1 << i)) {
       Serial.print(error_names[i]);
-      Serial.print(" ");
+      Serial.println("");
     }
   }
 }
@@ -114,50 +123,55 @@ static void set_error_flag(uint8_t flag) {
 static void clear_error_flag(uint8_t flag) { error_flags &= ~flag; }
 
 void loop() {
-  static unsigned long previousMillis = 0;
-  static uint32_t previous_interrupt_count = 0;
-  unsigned long currentMillis = millis();
 
-  if (digitalRead(PIN_HEATER) == PIN_HEATER_ON) {
-    Serial.println("Heater is on");
-  } else {
-    Serial.println("Heater is off");
+  // Print current heater state
+  uint8_t heater_state = digitalRead(PIN_HEATER);
+  static uint8_t previous_heater_state = PIN_HEATER_OFF;
+  if (heater_state != previous_heater_state) {
+    Serial.print("Heater is ");
+    Serial.println(heater_state == PIN_HEATER_ON ? "on" : "off");
+    previous_heater_state = heater_state;
   }
-
-
-  Serial.print("Intterupt count: ");
-  Serial.print(interrupt_count);
-  Serial.print(" mod: ");
-  Serial.println((interrupt_count % 100));
 
   // Calculate frequency in Hz
+  static unsigned long previous_ms = 0;
+  static uint32_t previous_interrupt_count = 0;
+  unsigned long current_ms = millis();
   unsigned long count = interrupt_count - previous_interrupt_count;
-  unsigned long interval = currentMillis - previousMillis;
-  double frequency = count / (interval / 1000.0);
-  previousMillis = currentMillis;
-  previous_interrupt_count = interrupt_count;
+  unsigned long interval = current_ms - previous_ms;
+  if (interval > 1000.0) {
+    double frequency = count / (interval / 1000.0);
+    previous_ms = current_ms;
+    previous_interrupt_count = interrupt_count;
 
-  if (frequency > 40 && frequency < 70) {
-    clear_error_flag(ERROR_BAD_FREQUENCY);
-  } else {
-    set_error_flag(ERROR_BAD_FREQUENCY);
+    if (frequency > 40 && frequency < 70) {
+      clear_error_flag(ERROR_BAD_FREQUENCY);
+    } else {
+      set_error_flag(ERROR_BAD_FREQUENCY);
+    }
+
+    // Print the frequency
+    Serial.print("Intterupt count: ");
+    Serial.print(interrupt_count);
+    Serial.print(" mod: ");
+    Serial.println((interrupt_count % 100));
+    Serial.print("Interrupt frequency: ");
+    Serial.print(frequency);
+    Serial.println(" Hz");
   }
-
-  // Print the frequency
-  Serial.print("Interrupt frequency: ");
-  Serial.print(frequency);
-  Serial.println(" Hz");
-
-  // Print the power percentage
-  Serial.print("Power: ");
-  Serial.println(power_percent);
 
   // Only read the temperature if heater is off
 
-  if (digitalRead(PIN_HEATER) == PIN_HEATER_OFF) {
-
-    int16_t adc0 = ads.readADC_SingleEnded(0);
-    float voltage_measured = ads.computeVolts(adc0);
+  // Prevent start up of the mosfet while reading the temperature
+  reading_temperature = 1;
+  // Require 10ms to settle the voltage
+  if (off_time > 0 && current_ms > (off_time + 10)) {
+    //unsigned long start_ms = millis();
+    int32_t adc_sum = 0;
+    for (int i = 0; i < 5; i++) {
+      adc_sum += ads.readADC_SingleEnded(0);
+    }
+    float voltage_measured = ads.computeVolts(adc_sum/5);
 
     // Calculate thermocouple voltage before amplification
     float thermocouple_voltage = voltage_measured / GAIN; // Voltage in volts
@@ -168,6 +182,15 @@ void loop() {
 
     // Apply polynomial correction to the reported temperature
     float actual_temperature = correct_temperature(reported_temperature);
+    //Serial.print("Time to read: ");
+    //Serial.print((millis() - start_ms));
+    //Serial.println(" ms");
+
+
+
+    Serial.print("Off time: ");
+    Serial.print((current_ms - off_time));
+    Serial.println(" ms");
 
     // Print results
     Serial.print("Measured Voltage: ");
@@ -210,10 +233,14 @@ void loop() {
 
       // Set power percentage based on PID output
       power_percent = constrain(output, 0, 50);
+      // Print the power percentage
+      Serial.print("Power: ");
+      Serial.println(power_percent);
     }
+    reading_temperature = 0;
     delay(1000); // wait for a second
   } else {
+    reading_temperature = 0;
     delay(1);
   }
-
 }
