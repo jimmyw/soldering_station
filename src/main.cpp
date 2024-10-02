@@ -66,9 +66,12 @@ enum state_e {
   STATE_IDLE,
 };
 static volatile enum state_e state = STATE_HEATING;
-static volatile uint32_t state_time = 0; // Time in milliseconds since state change
+static volatile uint32_t state_time =
+    0; // Time in milliseconds since state change
 static volatile uint32_t state_count = 0; // Number of interrupts in the state
-uint32_t full_cycle_count = 200; // 200 half cycles = 1 full second at 50Hz
+uint32_t full_cycle_count =
+    200; // The amount of half cycles we will max do before taking a temperature
+         // meassurement 200 half cycles = 1 full second at 50Hz
 
 void handlePin10Interrupt() {
 
@@ -82,7 +85,7 @@ void handlePin10Interrupt() {
     if (error_flags == 0) {
       digitalWrite(PIN_HEATER, PIN_HEATER_ON);
     }
-    uint32_t heat_time = round(power * full_cycle_count);
+    const uint32_t heat_time = round(power * full_cycle_count);
 
     if (state_count >= heat_time) {
       state = STATE_READING_TEMPERATURE;
@@ -97,7 +100,7 @@ void handlePin10Interrupt() {
   }
   case STATE_IDLE: {
     digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
-    uint32_t idle_time = round((1.0 - power) * full_cycle_count);
+    const uint32_t idle_time = round((1.0 - power) * full_cycle_count);
     if (state_count >= idle_time) {
       state = STATE_HEATING;
       state_time = millis();
@@ -197,7 +200,7 @@ void loop() {
 #define ADC_FILTERING 1
 
   // Require 200ms to settle the voltage
-  if (state == STATE_READING_TEMPERATURE && current_ms > (state_time + 200)) {
+  if (state == STATE_READING_TEMPERATURE && current_ms >= (state_time + 200)) {
     // unsigned long start_ms = millis();
     int32_t adc_sum = 0;
     for (int i = 0; i < ADC_FILTERING; i++) {
@@ -219,21 +222,27 @@ void loop() {
     // Serial.print((millis() - start_ms));
     // Serial.println(" ms");
 
-    Serial.print("Off time: ");
-    Serial.print((current_ms - state_time));
-    Serial.println(" ms");
+    // Serial.print("Off time: ");
+    // Serial.print((current_ms - state_time));
+    // Serial.println(" ms");
 
     // Print results
-    Serial.print("Measured Voltage: ");
-    Serial.print(voltage_measured, 6);
-    Serial.println(" V");
+    // Serial.print("Measured Voltage: ");
+    // Serial.print(voltage_measured, 6);
+    // Serial.println(" V");
 
     // Serial.print("Thermocouple Voltage: ");
     // Serial.print(thermocouple_voltage * 1e3, 6);  // Convert back to mV for
     // display Serial.println(" mV");
 
+    float setpoint = heater_setpoint;
+    if (digitalRead(PIN_DETECT) == LOW) {
+      setpoint = 150.0;
+    }
     Serial.print("Temperature: ");
     Serial.print(actual_temperature, 2);
+    Serial.print(" °C --> ");
+    Serial.print(setpoint, 2);
     Serial.println(" °C");
 
     if (actual_temperature < 20 || actual_temperature > 400) {
@@ -241,14 +250,6 @@ void loop() {
       set_error_flag(ERROR_NO_READING);
     } else {
       clear_error_flag(ERROR_NO_READING);
-
-      float setpoint = heater_setpoint;
-      if (digitalRead(PIN_DETECT) == LOW) {
-        setpoint = 150.0;
-      }
-      Serial.print("Setpoint: ");
-      Serial.print(setpoint, 2);
-      Serial.println(" °C");
 
       // Set power level based on temperature using a PID controller
       // PID controller
@@ -268,12 +269,12 @@ void loop() {
       Serial.print(" D: ");
       Serial.print(Kd * derivative);
       Serial.print(" O: ");
-      Serial.println(output);
+      Serial.print(output);
 
       // Set power percentage based on PID output (0.0 - 1.0)
       power = constrain(output, 0.0, 100.0) / 100.0;
       // Print the power percentage
-      Serial.print("Power: ");
+      Serial.print(" Power: ");
       Serial.println(power);
     }
     state = STATE_IDLE;
