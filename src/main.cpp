@@ -10,6 +10,7 @@
 #define PIN_SDA 3
 #define PIN_ZERO_CROSS 7
 #define PIN_HEATER 8
+#define PIN_DETECT 6
 
 #define PIN_HEATER_ON HIGH
 #define PIN_HEATER_OFF LOW
@@ -21,15 +22,15 @@ uint32_t interrupt_count = 0;
 uint32_t power_percent = 50;
 
 // PID constants
-const double Kp = 0.5;
-const double Ki = 0.5;
-const double Kd = 0.0;
+const float Kp = 0.5;
+const float Ki = 0.5;
+const float Kd = 0.5;
 
 // PID variables
-double previous_error = 0;
-double integral = 0;
-double setpoint = 300.0;             // Desired temperature in Celsius
-const double integral_limit = 100.0; // Maximum integral value in power %
+float previous_error = 0;
+float integral = 0;
+float heater_setpoint = 350.0;             // Desired temperature in Celsius
+const float integral_limit = 100.0; // Maximum integral value in power %
 uint8_t error_flags = 0;
 
 #define ERROR_NO_READING 1    // Thermocouple fault
@@ -131,6 +132,10 @@ void setup() {
   pinMode(PIN_ZERO_CROSS, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_ZERO_CROSS), handlePin10Interrupt,
                   CHANGE);
+
+  // Pin detect is to see if iron is in the stand. active low, pullup needed
+  pinMode(PIN_DETECT, INPUT_PULLUP);
+
 }
 
 static void set_error_flag(uint8_t flag) {
@@ -168,7 +173,7 @@ void loop() {
   unsigned long count = interrupt_count - previous_interrupt_count;
   unsigned long interval = current_ms - previous_ms;
   if (interval > 1000.0) {
-    double frequency = count / (interval / 1000.0);
+    float frequency = count / (interval / 1000.0);
     previous_ms = current_ms;
     previous_interrupt_count = interrupt_count;
 
@@ -235,14 +240,22 @@ void loop() {
     } else {
       clear_error_flag(ERROR_NO_READING);
 
+      float setpoint = heater_setpoint;
+      if (digitalRead(PIN_DETECT) == LOW) {
+        setpoint = 150.0;
+      }
+      Serial.print("Setpoint: ");
+      Serial.print(setpoint, 2);
+      Serial.println(" °C");
+
       // Set power level based on temperature using a PID controller
       // PID controller
-      double error = setpoint - actual_temperature;
+      float error = setpoint - actual_temperature;
       integral += error;
       integral = constrain(integral, 0,
                            integral_limit); // Windup protection
-      double derivative = error - previous_error;
-      double output = Kp * error + Ki * integral + Kd * derivative;
+      float derivative = error - previous_error;
+      float output = Kp * error + Ki * integral + Kd * derivative;
       previous_error = error;
 
       // Print all pid values
