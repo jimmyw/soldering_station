@@ -18,8 +18,8 @@
 // initialize the Thermocouple
 Adafruit_ADS1015 ads;
 
-uint32_t interrupt_count = 0;
-uint32_t power_percent = 50;
+uint32_t frequency_count = 0;
+float power = 0.0; // Number between 0.0 and 1.0
 
 // PID constants
 const float Kp = 0.5;
@@ -29,7 +29,7 @@ const float Kd = 0.5;
 // PID variables
 float previous_error = 0;
 float integral = 0;
-float heater_setpoint = 350.0;             // Desired temperature in Celsius
+float heater_setpoint = 350.0;      // Desired temperature in Celsius
 const float integral_limit = 100.0; // Maximum integral value in power %
 uint8_t error_flags = 0;
 
@@ -56,9 +56,9 @@ float correct_temperature(float reported_temperature) {
 }
 
 // State machine
-// 1. Heating for X interrupt based on power_percent
+// 1. Heating for X interrupt based on power
 // 2. Reading temperature
-// 3. Idle for X interrupts based on power_percent
+// 3. Idle for X interrupts based on power
 // 4. Error state
 enum state_e {
   STATE_HEATING,
@@ -66,44 +66,45 @@ enum state_e {
   STATE_IDLE,
 };
 static volatile enum state_e state = STATE_HEATING;
-static volatile uint32_t state_time = 0;
-static volatile uint32_t state_count = 0;
+static volatile uint32_t state_time = 0; // Time in milliseconds since state change
+static volatile uint32_t state_count = 0; // Number of interrupts in the state
+uint32_t full_cycle_count = 200; // 200 half cycles = 1 full second at 50Hz
 
 void handlePin10Interrupt() {
-  // Your interrupt handling code here
-  // For example, toggle an LED or set a flag
-  if (digitalRead(PIN_ZERO_CROSS) == HIGH) {
-    interrupt_count++;
-    state_count++;
-    switch (state) {
-    case STATE_HEATING: {
-      if (error_flags == 0) {
-        digitalWrite(PIN_HEATER, PIN_HEATER_ON);
-      }
-      uint32_t heat_time = power_percent;
 
-      if (state_count >= heat_time) {
-        state = STATE_READING_TEMPERATURE;
-        state_time = millis();
-        state_count = 0;
-      }
-      break;
+  if (digitalRead(PIN_ZERO_CROSS) == LOW) {
+    frequency_count++;
+  }
+
+  state_count++;
+  switch (state) {
+  case STATE_HEATING: {
+    if (error_flags == 0) {
+      digitalWrite(PIN_HEATER, PIN_HEATER_ON);
     }
-    case STATE_READING_TEMPERATURE: {
-      digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
-      break;
+    uint32_t heat_time = round(power * full_cycle_count);
+
+    if (state_count >= heat_time) {
+      state = STATE_READING_TEMPERATURE;
+      state_time = millis();
+      state_count = 0;
     }
-    case STATE_IDLE: {
-      digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
-      uint32_t idle_time = 100 - power_percent;
-      if (state_count >= idle_time) {
-        state = STATE_HEATING;
-        state_time = millis();
-        state_count = 0;
-      }
-      break;
+    break;
+  }
+  case STATE_READING_TEMPERATURE: {
+    digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
+    break;
+  }
+  case STATE_IDLE: {
+    digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
+    uint32_t idle_time = round((1.0 - power) * full_cycle_count);
+    if (state_count >= idle_time) {
+      state = STATE_HEATING;
+      state_time = millis();
+      state_count = 0;
     }
-    }
+    break;
+  }
   }
 }
 
@@ -135,7 +136,6 @@ void setup() {
 
   // Pin detect is to see if iron is in the stand. active low, pullup needed
   pinMode(PIN_DETECT, INPUT_PULLUP);
-
 }
 
 static void set_error_flag(uint8_t flag) {
@@ -162,20 +162,22 @@ void loop() {
   static enum state_e previous_heater_state;
   if (state != previous_heater_state) {
     Serial.print("Heater is ");
-    Serial.println(state == STATE_HEATING ? "HEAT" : state == STATE_READING_TEMPERATURE ? "TEMP" : "IDLE");
+    Serial.println(state == STATE_HEATING               ? "HEAT"
+                   : state == STATE_READING_TEMPERATURE ? "TEMP"
+                                                        : "IDLE");
     previous_heater_state = state;
   }
 
   // Calculate frequency in Hz
   static unsigned long previous_ms = 0;
-  static uint32_t previous_interrupt_count = 0;
+  static uint32_t previous_frequency_count = 0;
   unsigned long current_ms = millis();
-  unsigned long count = interrupt_count - previous_interrupt_count;
+  unsigned long count = frequency_count - previous_frequency_count;
   unsigned long interval = current_ms - previous_ms;
   if (interval > 1000.0) {
     float frequency = count / (interval / 1000.0);
     previous_ms = current_ms;
-    previous_interrupt_count = interrupt_count;
+    previous_frequency_count = frequency_count;
 
     if (frequency > 40 && frequency < 70) {
       clear_error_flag(ERROR_BAD_FREQUENCY);
@@ -184,11 +186,11 @@ void loop() {
     }
 
     // Print the frequency
-    //Serial.print("Intterupt count: ");
-    //Serial.print(interrupt_count);
-    //Serial.print("Interrupt frequency: ");
-    //Serial.print(frequency);
-    //Serial.println(" Hz");
+    // Serial.print("Intterupt count: ");
+    // Serial.print(frequency_count);
+    // Serial.print("Interrupt frequency: ");
+    // Serial.print(frequency);
+    // Serial.println(" Hz");
   }
 
   // Only read the temperature if heater is off
@@ -268,11 +270,11 @@ void loop() {
       Serial.print(" O: ");
       Serial.println(output);
 
-      // Set power percentage based on PID output
-      power_percent = constrain(output, 0, 98);
+      // Set power percentage based on PID output (0.0 - 1.0)
+      power = constrain(output, 0.0, 100.0) / 100.0;
       // Print the power percentage
       Serial.print("Power: ");
-      Serial.println(power_percent);
+      Serial.println(power);
     }
     state = STATE_IDLE;
   }
