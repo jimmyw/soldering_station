@@ -21,7 +21,7 @@ uint32_t interrupt_count = 0;
 uint32_t power_percent = 50;
 
 // PID constants
-const double Kp = 1.0;
+const double Kp = 0.5;
 const double Ki = 0.5;
 const double Kd = 0.0;
 
@@ -239,7 +239,7 @@ void loop() {
       // PID controller
       double error = setpoint - actual_temperature;
       integral += error;
-      integral = constrain(integral, -integral_limit,
+      integral = constrain(integral, 0,
                            integral_limit); // Windup protection
       double derivative = error - previous_error;
       double output = Kp * error + Ki * integral + Kd * derivative;
