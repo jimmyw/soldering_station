@@ -21,9 +21,9 @@ uint32_t interrupt_count = 0;
 uint32_t power_percent = 50;
 
 // PID constants
-const double Kp = 2.0;
+const double Kp = 1.0;
 const double Ki = 0.5;
-const double Kd = 1.0;
+const double Kd = 0.0;
 
 // PID variables
 double previous_error = 0;
@@ -31,9 +31,8 @@ double integral = 0;
 double setpoint = 300.0;             // Desired temperature in Celsius
 const double integral_limit = 100.0; // Maximum integral value in power %
 uint8_t error_flags = 0;
-static volatile uint8_t reading_temperature = 0;
 
-#define ERROR_NO_READING 1 // Thermocouple fault
+#define ERROR_NO_READING 1    // Thermocouple fault
 #define ERROR_BAD_FREQUENCY 2 // Frequency out of range
 const char *error_names[] = {
     "NO_READING",
@@ -55,24 +54,54 @@ float correct_temperature(float reported_temperature) {
   return (slope * reported_temperature) + intercept;
 }
 
+// State machine
+// 1. Heating for X interrupt based on power_percent
+// 2. Reading temperature
+// 3. Idle for X interrupts based on power_percent
+// 4. Error state
+enum state_e {
+  STATE_HEATING,
+  STATE_READING_TEMPERATURE,
+  STATE_IDLE,
+};
+static volatile enum state_e state = STATE_HEATING;
+static volatile uint32_t state_time = 0;
+static volatile uint32_t state_count = 0;
 
-uint32_t off_time = 0;
 void handlePin10Interrupt() {
   // Your interrupt handling code here
   // For example, toggle an LED or set a flag
   if (digitalRead(PIN_ZERO_CROSS) == HIGH) {
     interrupt_count++;
+    state_count++;
+    switch (state) {
+    case STATE_HEATING: {
+      if (error_flags == 0) {
+        digitalWrite(PIN_HEATER, PIN_HEATER_ON);
+      }
+      uint32_t heat_time = power_percent;
 
-    if ((interrupt_count % 100) >= (100 - power_percent) && error_flags == 0 &&
-        reading_temperature == 0) {
-      if (off_time > 0)
-        off_time = 0;
-      digitalWrite(PIN_HEATER, PIN_HEATER_ON);
-
-    } else {
-      if (off_time == 0)
-        off_time = millis();
+      if (state_count >= heat_time) {
+        state = STATE_READING_TEMPERATURE;
+        state_time = millis();
+        state_count = 0;
+      }
+      break;
+    }
+    case STATE_READING_TEMPERATURE: {
       digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
+      break;
+    }
+    case STATE_IDLE: {
+      digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
+      uint32_t idle_time = 100 - power_percent;
+      if (state_count >= idle_time) {
+        state = STATE_HEATING;
+        state_time = millis();
+        state_count = 0;
+      }
+      break;
+    }
     }
   }
 }
@@ -125,12 +154,11 @@ static void clear_error_flag(uint8_t flag) { error_flags &= ~flag; }
 void loop() {
 
   // Print current heater state
-  uint8_t heater_state = digitalRead(PIN_HEATER);
-  static uint8_t previous_heater_state = PIN_HEATER_OFF;
-  if (heater_state != previous_heater_state) {
+  static enum state_e previous_heater_state;
+  if (state != previous_heater_state) {
     Serial.print("Heater is ");
-    Serial.println(heater_state == PIN_HEATER_ON ? "on" : "off");
-    previous_heater_state = heater_state;
+    Serial.println(state == STATE_HEATING ? "HEAT" : state == STATE_READING_TEMPERATURE ? "TEMP" : "IDLE");
+    previous_heater_state = state;
   }
 
   // Calculate frequency in Hz
@@ -151,27 +179,25 @@ void loop() {
     }
 
     // Print the frequency
-    Serial.print("Intterupt count: ");
-    Serial.print(interrupt_count);
-    Serial.print(" mod: ");
-    Serial.println((interrupt_count % 100));
-    Serial.print("Interrupt frequency: ");
-    Serial.print(frequency);
-    Serial.println(" Hz");
+    //Serial.print("Intterupt count: ");
+    //Serial.print(interrupt_count);
+    //Serial.print("Interrupt frequency: ");
+    //Serial.print(frequency);
+    //Serial.println(" Hz");
   }
 
   // Only read the temperature if heater is off
+#define ADC_FILTERING 1
 
-  // Prevent start up of the mosfet while reading the temperature
-  reading_temperature = 1;
-  // Require 10ms to settle the voltage
-  if (off_time > 0 && current_ms > (off_time + 10)) {
-    //unsigned long start_ms = millis();
+  // Require 200ms to settle the voltage
+  if (state == STATE_READING_TEMPERATURE && current_ms > (state_time + 200)) {
+    // unsigned long start_ms = millis();
     int32_t adc_sum = 0;
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < ADC_FILTERING; i++) {
       adc_sum += ads.readADC_SingleEnded(0);
     }
-    float voltage_measured = ads.computeVolts(adc_sum/5);
+    float voltage_measured =
+        ads.computeVolts((float)adc_sum / (float)ADC_FILTERING);
 
     // Calculate thermocouple voltage before amplification
     float thermocouple_voltage = voltage_measured / GAIN; // Voltage in volts
@@ -182,14 +208,12 @@ void loop() {
 
     // Apply polynomial correction to the reported temperature
     float actual_temperature = correct_temperature(reported_temperature);
-    //Serial.print("Time to read: ");
-    //Serial.print((millis() - start_ms));
-    //Serial.println(" ms");
-
-
+    // Serial.print("Time to read: ");
+    // Serial.print((millis() - start_ms));
+    // Serial.println(" ms");
 
     Serial.print("Off time: ");
-    Serial.print((current_ms - off_time));
+    Serial.print((current_ms - state_time));
     Serial.println(" ms");
 
     // Print results
@@ -223,24 +247,21 @@ void loop() {
 
       // Print all pid values
       Serial.print("P: ");
-      Serial.print(error);
+      Serial.print(Kp * error);
       Serial.print(" I: ");
-      Serial.print(integral);
+      Serial.print(Ki * integral);
       Serial.print(" D: ");
-      Serial.print(derivative);
+      Serial.print(Kd * derivative);
       Serial.print(" O: ");
       Serial.println(output);
 
       // Set power percentage based on PID output
-      power_percent = constrain(output, 0, 50);
+      power_percent = constrain(output, 0, 98);
       // Print the power percentage
       Serial.print("Power: ");
       Serial.println(power_percent);
     }
-    reading_temperature = 0;
-    delay(1000); // wait for a second
-  } else {
-    reading_temperature = 0;
-    delay(1);
+    state = STATE_IDLE;
   }
+  delay(1);
 }
