@@ -3,6 +3,8 @@
 
 #include <Adafruit_ADS1X15.h>
 #include <SPI.h>
+#include <U8g2lib.h>
+#include <Wire.h>
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
@@ -11,12 +13,19 @@
 #define PIN_ZERO_CROSS 7
 #define PIN_HEATER 8
 #define PIN_DETECT 6
+#define LCD_SCL 21
+#define LCD_SDA 20
 
 #define PIN_HEATER_ON HIGH
 #define PIN_HEATER_OFF LOW
 
 // initialize the Thermocouple
 Adafruit_ADS1015 ads;
+
+U8G2_SSD1306_128X32_UNIVISION_F_SW_I2C u8g2(/* rotation =*/U8G2_R0,
+                                          /* clock=*/LCD_SCL,
+                                          /* data=*/LCD_SDA,
+                                          /* reset=*/U8X8_PIN_NONE);
 
 uint32_t frequency_count = 0;
 float power = 0.0; // Number between 0.0 and 1.0
@@ -69,9 +78,10 @@ static volatile enum state_e state = STATE_HEATING;
 static volatile uint32_t state_time =
     0; // Time in milliseconds since state change
 static volatile uint32_t state_count = 0; // Number of interrupts in the state
-uint32_t full_cycle_count =
+static uint32_t full_cycle_count =
     200; // The amount of half cycles we will max do before taking a temperature
          // meassurement 200 half cycles = 1 full second at 50Hz
+static float actual_temperature = 0;
 
 void handlePin10Interrupt() {
 
@@ -120,6 +130,13 @@ void setup() {
 
   Serial.println("Hello, World!");
 
+  u8g2.begin();
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(0, 10);
+  u8g2.print("Hello, World!");
+  u8g2.sendBuffer();
+
   Wire.begin(PIN_SDA, PIN_SCL);
 
   // wait for MAX chip to stabilize
@@ -157,10 +174,59 @@ static void set_error_flag(uint8_t flag) {
   }
 }
 
+static float target_temp() {
+  if (digitalRead(PIN_DETECT) == LOW) {
+    return 150.0;
+  }
+  return heater_setpoint;
+}
+
+static void render_lcd() {
+  u8g2.firstPage();
+  do {
+    if (error_flags) {
+      u8g2.setFont(u8g2_font_ncenR08_tr);
+      u8g2.setCursor(0, 10);
+    } else {
+      u8g2.setFont(u8g2_font_ncenB10_tr);
+        u8g2.setCursor(0, 12);
+
+    }
+    u8g2.print(actual_temperature, 2);
+    u8g2.print(" -> ");
+    u8g2.print(target_temp(), 0);
+    u8g2.print("C");
+    u8g2.setCursor(0, 20);
+    for (uint8_t i = 0; i < ARRAY_SIZE(error_names); i++) {
+      if (error_flags & (1 << i)) {
+        u8g2.print(error_names[i]);
+        u8g2.print(" ");
+      }
+    }
+
+    // Plot a power bar in the bottom of the screen
+    const int bar_x = 0;
+    const int bar_width = u8g2.getDisplayWidth();
+    const int bar_height = 5;
+    const int bar_y = u8g2.getDisplayHeight() - bar_height; // 32 - 5 = 27
+
+    // Calculate the width of the filled part of the bar
+    int filled_width = (power * bar_width);
+
+    // Draw the bar outline
+    u8g2.drawFrame(bar_x, bar_y, bar_width, bar_height);
+
+    // Draw the filled part of the bar
+    u8g2.drawBox(bar_x, bar_y, filled_width, bar_height);
+
+
+  } while (u8g2.nextPage());
+}
+
+
 static void clear_error_flag(uint8_t flag) { error_flags &= ~flag; }
 
 void loop() {
-
   // Print current heater state
   static enum state_e previous_heater_state;
   if (state != previous_heater_state) {
@@ -217,7 +283,7 @@ void loop() {
         thermocouple_voltage * 1e6 / THERMOCOUPLE_SENSITIVITY; // µV/°C to °C
 
     // Apply polynomial correction to the reported temperature
-    float actual_temperature = correct_temperature(reported_temperature);
+    actual_temperature = correct_temperature(reported_temperature);
     // Serial.print("Time to read: ");
     // Serial.print((millis() - start_ms));
     // Serial.println(" ms");
@@ -235,10 +301,7 @@ void loop() {
     // Serial.print(thermocouple_voltage * 1e3, 6);  // Convert back to mV for
     // display Serial.println(" mV");
 
-    float setpoint = heater_setpoint;
-    if (digitalRead(PIN_DETECT) == LOW) {
-      setpoint = 150.0;
-    }
+    float setpoint = target_temp();
     Serial.print("Temperature: ");
     Serial.print(actual_temperature, 2);
     Serial.print(" °C --> ");
@@ -279,5 +342,8 @@ void loop() {
     }
     state = STATE_IDLE;
   }
+
+  render_lcd();
+
   delay(1);
 }
