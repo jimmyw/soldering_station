@@ -19,6 +19,8 @@
 #define PIN_HEATER_ON HIGH
 #define PIN_HEATER_OFF LOW
 
+#define TEMP_DELAY_MS 50
+
 // initialize the Thermocouple
 Adafruit_ADS1015 ads;
 
@@ -58,7 +60,7 @@ const float THERMOCOUPLE_SENSITIVITY =
 float correct_temperature(float reported_temperature) {
   // Linear fit coefficients based on the fit
   float slope = 1.17912088;
-  float intercept = 29.91208791;
+  float intercept = 90; //29.91208791;
 
   // Apply the linear correction formula
   return (slope * reported_temperature) + intercept;
@@ -266,7 +268,7 @@ void loop() {
 #define ADC_FILTERING 1
 
   // Require 200ms to settle the voltage
-  if (state == STATE_READING_TEMPERATURE && current_ms >= (state_time + 200)) {
+  if (state == STATE_READING_TEMPERATURE && current_ms >= (state_time + TEMP_DELAY_MS)) {
     // unsigned long start_ms = millis();
     int32_t adc_sum = 0;
     for (int i = 0; i < ADC_FILTERING; i++) {
