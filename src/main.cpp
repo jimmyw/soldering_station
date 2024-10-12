@@ -25,9 +25,9 @@
 Adafruit_ADS1015 ads;
 
 U8G2_SSD1306_128X32_UNIVISION_F_SW_I2C u8g2(/* rotation =*/U8G2_R0,
-                                          /* clock=*/LCD_SCL,
-                                          /* data=*/LCD_SDA,
-                                          /* reset=*/U8X8_PIN_NONE);
+                                            /* clock=*/LCD_SCL,
+                                            /* data=*/LCD_SDA,
+                                            /* reset=*/U8X8_PIN_NONE);
 
 uint32_t frequency_count = 0;
 float power = 0.0; // Number between 0.0 and 1.0
@@ -196,8 +196,7 @@ static void render_lcd() {
       u8g2.setCursor(0, 10);
     } else {
       u8g2.setFont(u8g2_font_ncenB10_tr);
-        u8g2.setCursor(0, 12);
-
+      u8g2.setCursor(0, 12);
     }
     u8g2.print(actual_temperature, 2);
     u8g2.print(" -> ");
@@ -226,10 +225,29 @@ static void render_lcd() {
     // Draw the filled part of the bar
     u8g2.drawBox(bar_x, bar_y, filled_width, bar_height);
 
-
   } while (u8g2.nextPage());
 }
 
+// Uses a 100k NTC thermistor with a 100k pulldown resistor
+static float getAmbientTempCelcius() {
+  int32_t reading = ads.readADC_SingleEnded(3);
+  float voltage = ads.computeVolts(reading);
+
+  // Calculate the resistance of the thermistor
+  float resistance = 100000.0 * (3.289 / voltage - 1.0);
+
+  // Calculate the temperature using the Steinhart-Hart equation
+  float steinhart = resistance / 100000.0; // (R/Ro)
+  steinhart = log(steinhart);              // ln(R/Ro)
+  steinhart /= 3950.0;                     // 1/B * ln(R/Ro)
+
+  // Calculate the temperature in Kelvin from the resistance
+  float temp_kelvin = 1.0 /
+      (steinhart + 1.0 / 298.15); // 1/(1/B * ln(R/Ro) + 1/To)
+
+  // Convert Kelvin to Celsius
+  return temp_kelvin - 273.15;
+}
 
 static void clear_error_flag(uint8_t flag) { error_flags &= ~flag; }
 
@@ -272,8 +290,15 @@ void loop() {
   // Only read the temperature if heater is off
 #define ADC_FILTERING 1
 
+  float ambient_temp = getAmbientTempCelcius();
+  Serial.print("Ambient temperature: ");
+  Serial.print(ambient_temp);
+  Serial.println(" °C");
+
   // Require TEMP_DELAY_MS to settle the voltage
-  if ((state == STATE_READING_TEMPERATURE && current_ms >= (state_time + TEMP_DELAY_MS)) || (state == STATE_IDLE && current_ms >= (state_time + 5000))) {
+  if ((state == STATE_READING_TEMPERATURE &&
+       current_ms >= (state_time + TEMP_DELAY_MS)) ||
+      (state == STATE_IDLE && current_ms >= (state_time + 5000))) {
     // unsigned long start_ms = millis();
     int32_t adc_sum = 0;
     for (int i = 0; i < ADC_FILTERING; i++) {
@@ -286,24 +311,23 @@ void loop() {
     float thermocouple_voltage = voltage_measured / GAIN; // Voltage in volts
 
     // Convert thermocouple voltage to temperature in °C
-    float reported_temperature =
+    float thermocouple_temperature =
         thermocouple_voltage * 1e6 / THERMOCOUPLE_SENSITIVITY; // µV/°C to °C
 
     // Print results
     Serial.print("Measured Voltage: ");
     Serial.print(voltage_measured, 6);
     Serial.print(" V with gain: ");
-    Serial.print(thermocouple_voltage * 1e3, 6);  // Convert back to mV for
+    Serial.print(thermocouple_voltage * 1e3, 6); // Convert back to mV for
     Serial.println(" mV");
 
     // Apply polynomial correction to the reported temperature
-    actual_temperature = correct_temperature(reported_temperature);
+    actual_temperature = ambient_temp + thermocouple_temperature;
     Serial.print("Temperature: ");
-    Serial.print(reported_temperature, 2);
+    Serial.print(thermocouple_temperature, 2);
     Serial.print(" °C corrected: ");
     Serial.print(actual_temperature, 2);
     Serial.println(" °C");
-
 
     float setpoint = target_temp();
     Serial.print("Temperature: ");
