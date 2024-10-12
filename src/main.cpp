@@ -60,7 +60,7 @@ const float THERMOCOUPLE_SENSITIVITY =
 float correct_temperature(float reported_temperature) {
   // Linear fit coefficients based on the fit
   float slope = 1.17912088;
-  float intercept = 90; //29.91208791;
+  float intercept = 29.91208791;
 
   // Apply the linear correction formula
   return (slope * reported_temperature) + intercept;
@@ -165,6 +165,11 @@ static void set_error_flag(uint8_t flag) {
 
   // Turn off the PIN_HEATER
   digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
+  if (state == STATE_HEATING) {
+    state = STATE_IDLE;
+    state_time = millis();
+    state_count = 0;
+  }
 
   // Print the error
   Serial.print("Error: ");
@@ -267,8 +272,8 @@ void loop() {
   // Only read the temperature if heater is off
 #define ADC_FILTERING 1
 
-  // Require 200ms to settle the voltage
-  if (state == STATE_READING_TEMPERATURE && current_ms >= (state_time + TEMP_DELAY_MS)) {
+  // Require TEMP_DELAY_MS to settle the voltage
+  if ((state == STATE_READING_TEMPERATURE && current_ms >= (state_time + TEMP_DELAY_MS)) || (state == STATE_IDLE && current_ms >= (state_time + 5000))) {
     // unsigned long start_ms = millis();
     int32_t adc_sum = 0;
     for (int i = 0; i < ADC_FILTERING; i++) {
@@ -284,24 +289,21 @@ void loop() {
     float reported_temperature =
         thermocouple_voltage * 1e6 / THERMOCOUPLE_SENSITIVITY; // µV/°C to °C
 
+    // Print results
+    Serial.print("Measured Voltage: ");
+    Serial.print(voltage_measured, 6);
+    Serial.print(" V with gain: ");
+    Serial.print(thermocouple_voltage * 1e3, 6);  // Convert back to mV for
+    Serial.println(" mV");
+
     // Apply polynomial correction to the reported temperature
     actual_temperature = correct_temperature(reported_temperature);
-    // Serial.print("Time to read: ");
-    // Serial.print((millis() - start_ms));
-    // Serial.println(" ms");
+    Serial.print("Temperature: ");
+    Serial.print(reported_temperature, 2);
+    Serial.print(" °C corrected: ");
+    Serial.print(actual_temperature, 2);
+    Serial.println(" °C");
 
-    // Serial.print("Off time: ");
-    // Serial.print((current_ms - state_time));
-    // Serial.println(" ms");
-
-    // Print results
-    // Serial.print("Measured Voltage: ");
-    // Serial.print(voltage_measured, 6);
-    // Serial.println(" V");
-
-    // Serial.print("Thermocouple Voltage: ");
-    // Serial.print(thermocouple_voltage * 1e3, 6);  // Convert back to mV for
-    // display Serial.println(" mV");
 
     float setpoint = target_temp();
     Serial.print("Temperature: ");
