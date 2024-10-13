@@ -52,9 +52,12 @@ const char *error_names[] = {
 };
 
 const float GAIN =
-    201.0; // Amplification gain from the LTC2063 R1 = 200 kΩ, R2 = 1 kΩ
+    201.3; // Amplification gain from the LTC2063 R1 = 200.5 kΩ, R2 = 1.001 kΩ
+//const float THERMOCOUPLE_SENSITIVITY =
+//    41.0; // Type K thermocouple sensitivity in µV/°C
+
 const float THERMOCOUPLE_SENSITIVITY =
-    41.0; // Type K thermocouple sensitivity in µV/°C
+    42.85; // Type K thermocouple sensitivity in µV/°C
 
 // Function to correct the temperature using the polynomial formula
 float correct_temperature(float reported_temperature) {
