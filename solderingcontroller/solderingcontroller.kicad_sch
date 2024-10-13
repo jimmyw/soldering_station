@@ -5707,7 +5707,7 @@
 		(uuid "38494d92-2993-4297-b871-ad46d0131449")
 	)
 	(junction
-		(at 198.12 140.97)
+		(at 220.98 140.97)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "4738e131-b860-48db-a8a6-00d524e346bd")
@@ -6196,7 +6196,7 @@
 	)
 	(wire
 		(pts
-			(xy 198.12 151.13) (xy 198.12 157.48)
+			(xy 220.98 151.13) (xy 220.98 154.94)
 		)
 		(stroke
 			(width 0)
@@ -6376,7 +6376,7 @@
 	)
 	(wire
 		(pts
-			(xy 198.12 140.97) (xy 189.23 140.97)
+			(xy 220.98 140.97) (xy 212.09 140.97)
 		)
 		(stroke
 			(width 0)
@@ -6476,7 +6476,7 @@
 	)
 	(wire
 		(pts
-			(xy 189.23 140.97) (xy 189.23 102.87)
+			(xy 212.09 140.97) (xy 212.09 102.87)
 		)
 		(stroke
 			(width 0)
@@ -6546,7 +6546,7 @@
 	)
 	(wire
 		(pts
-			(xy 189.23 102.87) (xy 232.41 102.87)
+			(xy 212.09 102.87) (xy 232.41 102.87)
 		)
 		(stroke
 			(width 0)
@@ -6726,7 +6726,7 @@
 	)
 	(wire
 		(pts
-			(xy 198.12 140.97) (xy 198.12 143.51)
+			(xy 220.98 140.97) (xy 220.98 143.51)
 		)
 		(stroke
 			(width 0)
@@ -7336,6 +7336,16 @@
 		)
 		(uuid 5450e381-0593-4ab0-9c56-bf38c551ee1d)
 	)
+	(text "non-inverting amplifier"
+		(exclude_from_sim no)
+		(at 133.604 89.662 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "13e8c766-577f-4f6b-a928-167c1269860d")
+	)
 	(text "Thermocouple Ampltifier"
 		(exclude_from_sim no)
 		(at 124.206 76.708 0)
@@ -7355,6 +7365,16 @@
 			)
 		)
 		(uuid "5050ca7c-c038-45f7-908b-4976e417ff38")
+	)
+	(text "Temperature (°C) -> Output Voltage (V). K Type TC 200X gain\n0C   -> 0.0V\n50C  -> 0.41V\n100C -> 0.82V\n150C -> 1.23V\n200C -> 1.64V\n250C -> 2.05V\n300C -> 2.46V\n350C -> 2.87V\n400C -> 3.28V\n450C -> 3.69V\n500C -> 4.10V"
+		(exclude_from_sim no)
+		(at 180.34 129.286 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "61faee2b-c739-4a62-847b-ef040760bf50")
 	)
 	(text "MCU"
 		(exclude_from_sim no)
@@ -7378,13 +7398,23 @@
 	)
 	(text "Ambient Temp"
 		(exclude_from_sim no)
-		(at 198.628 119.38 0)
+		(at 221.488 119.38 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 		)
 		(uuid "8501371e-2f11-4d98-9f61-ef4ef3050787")
+	)
+	(text "GAIN: 200X"
+		(exclude_from_sim no)
+		(at 157.734 112.522 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+		(uuid "99010c1d-30de-4e98-a8ac-7e972f5bed66")
 	)
 	(text "AC Input"
 		(exclude_from_sim no)
@@ -8849,7 +8879,7 @@
 	)
 	(symbol
 		(lib_id "power:+3V3")
-		(at 198.12 133.35 0)
+		(at 220.98 133.35 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -8858,7 +8888,7 @@
 		(fields_autoplaced yes)
 		(uuid "29c6908d-a98b-4f6b-a98e-7cda67edec29")
 		(property "Reference" "#PWR08"
-			(at 198.12 137.16 0)
+			(at 220.98 137.16 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -8867,7 +8897,7 @@
 			)
 		)
 		(property "Value" "+3V3"
-			(at 198.12 128.27 0)
+			(at 220.98 128.27 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -8875,7 +8905,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 198.12 133.35 0)
+			(at 220.98 133.35 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -8884,7 +8914,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 198.12 133.35 0)
+			(at 220.98 133.35 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -8893,7 +8923,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 198.12 133.35 0)
+			(at 220.98 133.35 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9464,7 +9494,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 198.12 147.32 0)
+		(at 220.98 147.32 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -9473,7 +9503,7 @@
 		(fields_autoplaced yes)
 		(uuid "48350aa4-66b4-4145-81de-f2f63679589d")
 		(property "Reference" "R1"
-			(at 200.66 146.0499 0)
+			(at 223.52 146.0499 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9481,8 +9511,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "R"
-			(at 200.66 148.5899 0)
+		(property "Value" "100k"
+			(at 223.52 148.5899 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9491,7 +9521,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 196.342 147.32 90)
+			(at 219.202 147.32 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9500,7 +9530,7 @@
 			)
 		)
 		(property "Datasheet" "~"
-			(at 198.12 147.32 0)
+			(at 220.98 147.32 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9509,7 +9539,7 @@
 			)
 		)
 		(property "Description" "Resistor"
-			(at 198.12 147.32 0)
+			(at 220.98 147.32 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10603,7 +10633,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 198.12 157.48 0)
+		(at 220.98 154.94 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -10612,7 +10642,7 @@
 		(fields_autoplaced yes)
 		(uuid "8817bfb1-f5f9-4878-b06d-ed31a3829d6c")
 		(property "Reference" "#PWR09"
-			(at 198.12 163.83 0)
+			(at 220.98 161.29 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10621,7 +10651,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 198.12 162.56 0)
+			(at 220.98 160.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10629,7 +10659,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 198.12 157.48 0)
+			(at 220.98 154.94 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10638,7 +10668,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 198.12 157.48 0)
+			(at 220.98 154.94 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -10647,7 +10677,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 198.12 157.48 0)
+			(at 220.98 154.94 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11007,7 +11037,7 @@
 	)
 	(symbol
 		(lib_id "Device:Thermistor_NTC")
-		(at 198.12 137.16 0)
+		(at 220.98 137.16 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -11016,7 +11046,7 @@
 		(fields_autoplaced yes)
 		(uuid "8fe97af0-6234-4a6e-ab32-2573883f44ba")
 		(property "Reference" "TH1"
-			(at 200.66 136.2074 0)
+			(at 223.52 136.2074 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11025,7 +11055,7 @@
 			)
 		)
 		(property "Value" "Thermistor_NTC 100K"
-			(at 200.66 138.7474 0)
+			(at 223.52 138.7474 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11034,7 +11064,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 198.12 135.89 0)
+			(at 220.98 135.89 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11043,7 +11073,7 @@
 			)
 		)
 		(property "Datasheet" "~"
-			(at 198.12 135.89 0)
+			(at 220.98 135.89 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -11052,7 +11082,7 @@
 			)
 		)
 		(property "Description" "Temperature dependent resistor, negative temperature coefficient"
-			(at 198.12 137.16 0)
+			(at 220.98 137.16 0)
 			(effects
 				(font
 					(size 1.27 1.27)
