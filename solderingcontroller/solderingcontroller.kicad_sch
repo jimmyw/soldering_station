@@ -9722,7 +9722,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "300"
+		(property "Value" "1n"
 			(at 34.29 177.7999 0)
 			(effects
 				(font
@@ -11893,7 +11893,7 @@
 				)
 			)
 		)
-		(property "Value" "R"
+		(property "Value" "220"
 			(at 34.29 162.56 90)
 			(effects
 				(font
