@@ -33,6 +33,7 @@ const float THERMOCOUPLE_SENSITIVITY =
 // Samples to read for the ADC
 #define ADC_FILTERING 3
 
+#define STANDBY_TIMEOUT 60000 // 1 minute
 
 // initialize the Thermocouple
 Adafruit_ADS1015 ads;
@@ -56,12 +57,16 @@ float integral = 0;
 float heater_setpoint = 350.0;      // Desired temperature in Celsius
 const float integral_limit = 100.0; // Maximum integral value in power %
 uint8_t error_flags = 0;
+uint32_t last_standby_time = 0;
+static bool last_in_stand = false;
 
 #define ERROR_NO_READING 1    // Thermocouple fault
 #define ERROR_BAD_FREQUENCY 2 // Frequency out of range
+#define ERROR_STAND_BY 4      // Iron have not been used for a while and shut down
 const char *error_names[] = {
     "NO_READING",
     "BAD_FREQUENCY",
+    "STAND_BY",
 };
 
 
@@ -196,14 +201,14 @@ static void set_error_flag(uint8_t flag) {
   }
 }
 
-static float target_temp() {
-  if (digitalRead(PIN_DETECT) == LOW) {
+static float target_temp(bool in_stand) {
+  if (in_stand) {
     return 150.0;
   }
   return heater_setpoint;
 }
 
-static void render_lcd() {
+static void render_lcd(float setpoint) {
   u8g2.firstPage();
   do {
     if (error_flags) {
@@ -215,7 +220,7 @@ static void render_lcd() {
     }
     u8g2.print(actual_temperature, 2);
     u8g2.print(" -> ");
-    u8g2.print(target_temp(), 0);
+    u8g2.print(setpoint, 0);
     u8g2.print("C");
     u8g2.setCursor(0, 20);
     for (uint8_t i = 0; i < ARRAY_SIZE(error_names); i++) {
@@ -309,6 +314,25 @@ void loop() {
   //Serial.print(ambient_temp);
   //Serial.println(" °C");
 
+  // Calculate standby time
+  bool in_stand = digitalRead(PIN_DETECT) == LOW;
+  static bool last_in_stand = in_stand;
+
+  // Detect if the iron is placed in the stand has changed
+  if (in_stand != last_in_stand) {
+    last_standby_time = millis();
+    last_in_stand = in_stand;
+    clear_error_flag(ERROR_STAND_BY);
+  }
+
+  // If the iron have been out of the stand or in the stand for more than 1 minute
+  if (millis() - last_standby_time > STANDBY_TIMEOUT) {
+    set_error_flag(ERROR_STAND_BY);
+  }
+
+  float setpoint = target_temp(in_stand);
+
+
   // Require TEMP_DELAY_MS to settle the voltage
   if ((state == STATE_READING_TEMPERATURE &&
        current_ms >= (state_time + TEMP_DELAY_MS)) ||
@@ -346,7 +370,6 @@ void loop() {
     Serial.print(actual_temperature, 2);
     Serial.println(" °C");
 
-    float setpoint = target_temp();
     Serial.print("Temperature: ");
     Serial.print(actual_temperature, 2);
     Serial.print(" °C --> ");
@@ -388,7 +411,7 @@ void loop() {
     state = STATE_IDLE;
   }
 
-  render_lcd();
+  render_lcd(setpoint);
 
   delay(1);
 }
