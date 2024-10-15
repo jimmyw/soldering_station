@@ -33,7 +33,7 @@ const float THERMOCOUPLE_SENSITIVITY =
 // Samples to read for the ADC
 #define ADC_FILTERING 3
 
-#define STANDBY_TIMEOUT 60000 // 1 minute
+#define STANDBY_TIMEOUT (5 * 60000) // 5 minutes
 
 // initialize the Thermocouple
 Adafruit_ADS1015 ads;
@@ -105,6 +105,12 @@ static uint32_t full_cycle_count =
          // meassurement 200 half cycles = 1 full second at 50Hz
 static float actual_temperature = 0;
 
+static void goState(enum state_e new_state) {
+  state = new_state;
+  state_time = millis();
+  state_count = 0;
+}
+
 void handlePin10Interrupt() {
 
   if (digitalRead(PIN_ZERO_CROSS) == LOW) {
@@ -120,9 +126,7 @@ void handlePin10Interrupt() {
     const uint32_t heat_time = round(power * full_cycle_count);
 
     if (state_count >= heat_time) {
-      state = STATE_READING_TEMPERATURE;
-      state_time = millis();
-      state_count = 0;
+      goState(STATE_READING_TEMPERATURE);
     }
     break;
   }
@@ -134,9 +138,11 @@ void handlePin10Interrupt() {
     digitalWrite(PIN_HEATER, PIN_HEATER_OFF);
     const uint32_t idle_time = round((1.0 - power) * full_cycle_count);
     if (state_count >= idle_time) {
-      state = STATE_HEATING;
-      state_time = millis();
-      state_count = 0;
+      if (error_flags == 0) {
+        goState(STATE_HEATING);
+      } else {
+        goState(STATE_READING_TEMPERATURE);
+      }
     }
     break;
   }
@@ -409,6 +415,11 @@ void loop() {
       Serial.println(power);
     }
     state = STATE_IDLE;
+  }
+
+  // Just so display looks right.
+  if (error_flags != 0) {
+    power = 0.0;
   }
 
   render_lcd(setpoint);
