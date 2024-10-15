@@ -19,7 +19,20 @@
 #define PIN_HEATER_ON HIGH
 #define PIN_HEATER_OFF LOW
 
-#define TEMP_DELAY_MS 50
+const float GAIN =
+    201.3; // Amplification gain from the LTC2063 R1 = 200.5 kΩ, R2 = 1.001 kΩ
+//const float THERMOCOUPLE_SENSITIVITY =
+//    41.0; // Type K thermocouple sensitivity in µV/°C
+
+const float THERMOCOUPLE_SENSITIVITY =
+    42.85; // Type K thermocouple sensitivity in µV/°C
+
+// Time to wait after switching of heater before reading the temperature
+#define TEMP_DELAY_MS 20
+
+// Samples to read for the ADC
+#define ADC_FILTERING 3
+
 
 // initialize the Thermocouple
 Adafruit_ADS1015 ads;
@@ -33,9 +46,9 @@ uint32_t frequency_count = 0;
 float power = 0.0; // Number between 0.0 and 1.0
 
 // PID constants
-const float Kp = 0.5;
-const float Ki = 0.5;
-const float Kd = 0.5;
+const float Kp = 1.0;  // In practice means 1% power increase per degree, so 100 degrees difference = 100% power
+const float Ki = 0.2;  // Integral gain 0.5% per second, so 100 seconds can adjust 50% power
+const float Kd = 0.2;
 
 // PID variables
 float previous_error = 0;
@@ -51,19 +64,18 @@ const char *error_names[] = {
     "BAD_FREQUENCY",
 };
 
-const float GAIN =
-    201.3; // Amplification gain from the LTC2063 R1 = 200.5 kΩ, R2 = 1.001 kΩ
-//const float THERMOCOUPLE_SENSITIVITY =
-//    41.0; // Type K thermocouple sensitivity in µV/°C
 
-const float THERMOCOUPLE_SENSITIVITY =
-    42.85; // Type K thermocouple sensitivity in µV/°C
 
-// Function to correct the temperature using the polynomial formula
-float correct_temperature(float reported_temperature) {
-  // Linear fit coefficients based on the fit
-  float slope = 1.17912088;
-  float intercept = 29.91208791;
+// Calibrate the temperature sensor
+// Calibration points is measured at 150°C and 350°C
+float calibrate_temperature(float reported_temperature) {
+
+  float measserd_temperature_150 = 175;
+  float measserd_temperature_350 = 430;
+
+  // Calculate the slope and intercept
+  float slope = (measserd_temperature_350 - measserd_temperature_150) / (350.0 - 150.0);
+  float intercept = measserd_temperature_150 - slope * 150.0;
 
   // Apply the linear correction formula
   return (slope * reported_temperature) + intercept;
@@ -291,12 +303,11 @@ void loop() {
   }
 
   // Only read the temperature if heater is off
-#define ADC_FILTERING 1
 
   float ambient_temp = getAmbientTempCelcius();
-  Serial.print("Ambient temperature: ");
-  Serial.print(ambient_temp);
-  Serial.println(" °C");
+  //Serial.print("Ambient temperature: ");
+  //Serial.print(ambient_temp);
+  //Serial.println(" °C");
 
   // Require TEMP_DELAY_MS to settle the voltage
   if ((state == STATE_READING_TEMPERATURE &&
@@ -307,28 +318,31 @@ void loop() {
     for (int i = 0; i < ADC_FILTERING; i++) {
       adc_sum += ads.readADC_SingleEnded(0);
     }
-    float voltage_measured =
-        ads.computeVolts((float)adc_sum / (float)ADC_FILTERING);
+    float voltage_measured_mv =
+        ads.computeVolts((float)adc_sum / (float)ADC_FILTERING) * 1000.0;
 
     // Calculate thermocouple voltage before amplification
-    float thermocouple_voltage = voltage_measured / GAIN; // Voltage in volts
-
-    // Convert thermocouple voltage to temperature in °C
-    float thermocouple_temperature =
-        thermocouple_voltage * 1e6 / THERMOCOUPLE_SENSITIVITY; // µV/°C to °C
+    float thermocouple_voltage_mv = voltage_measured_mv / GAIN;
 
     // Print results
     Serial.print("Measured Voltage: ");
-    Serial.print(voltage_measured, 6);
-    Serial.print(" V with gain: ");
-    Serial.print(thermocouple_voltage * 1e3, 6); // Convert back to mV for
+    Serial.print(voltage_measured_mv, 6);
+    Serial.print(" mV before gain: ");
+    Serial.print(thermocouple_voltage_mv, 6); // Convert back to mV for
     Serial.println(" mV");
 
+
+    // Convert thermocouple voltage to temperature in °C
+    float thermocouple_temperature =
+        thermocouple_voltage_mv * 1e3 / THERMOCOUPLE_SENSITIVITY; // µV/°C to °C
+
     // Apply polynomial correction to the reported temperature
-    actual_temperature = ambient_temp + thermocouple_temperature;
+    actual_temperature = calibrate_temperature(ambient_temp + thermocouple_temperature);
     Serial.print("Temperature: ");
     Serial.print(thermocouple_temperature, 2);
     Serial.print(" °C corrected: ");
+    Serial.print(ambient_temp + thermocouple_temperature, 2);
+    Serial.print(" °C calibrated: ");
     Serial.print(actual_temperature, 2);
     Serial.println(" °C");
 
