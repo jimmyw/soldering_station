@@ -114,7 +114,7 @@ static volatile uint32_t state_time =
     0; // Time in milliseconds since state change
 static volatile uint32_t state_count = 0; // Number of interrupts in the state
 static uint32_t full_cycle_count =
-    200; // The amount of half cycles we will max do before taking a temperature
+    100; // The amount of half cycles we will max do before taking a temperature
          // meassurement 200 half cycles = 1 full second at 50Hz
 static float actual_temperature = 0;
 
