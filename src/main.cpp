@@ -70,7 +70,6 @@ static bool last_in_stand = false;
 void hmiTask(void *pvParameters);
 void lcdTask(void *pvParameters);
 
-
 #define ERROR_NO_READING 1    // Thermocouple fault
 #define ERROR_BAD_FREQUENCY 2 // Frequency out of range
 #define ERROR_STAND_BY 4 // Iron have not been used for a while and shut down
@@ -79,9 +78,6 @@ const char *error_names[] = {
     "BAD_FREQUENCY",
     "STAND_BY",
 };
-
-void handleButtons();
-void handleButtonInterrupt();
 
 // Calibrate the temperature sensor
 // Calibration points is measured at 150°C and 350°C
@@ -171,6 +167,8 @@ void setup() {
 
   Serial.println("Hello, World!");
 
+
+  // Initialize LCD
   u8g2.begin();
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_ncenB08_tr);
@@ -178,19 +176,19 @@ void setup() {
   u8g2.print("Hello, World!");
   u8g2.sendBuffer();
 
-  Wire.begin(PIN_SDA, PIN_SCL);
 
-  // wait for MAX chip to stabilize
+  Serial.print("Initializing ADC... ");
+  Wire.begin(PIN_SDA, PIN_SCL);
   delay(500);
-  Serial.print("Initializing ADC...");
   if (!ads.begin()) {
     Serial.println("Failed to initialize ADS.");
     delay(1000);
   }
+  Serial.println("Done");
 
+
+  // Setup heater driver
   pinMode(PIN_HEATER, OUTPUT);
-
-  // Attach the new interrupt to pin 10
   pinMode(PIN_ZERO_CROSS, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_ZERO_CROSS), handlePin10Interrupt,
                   CHANGE);
@@ -198,69 +196,37 @@ void setup() {
   // Pin detect is to see if iron is in the stand. active low, pullup needed
   pinMode(PIN_DETECT, INPUT_PULLUP);
 
-  // Setup rotare encoder
+  // Setup rotary encoder
   pinMode(PIN_ENCODER_A, INPUT_PULLUP);
   pinMode(PIN_ENCODER_B, INPUT_PULLUP);
   pinMode(PIN_ENCODER_SW, INPUT_PULLUP);
 
-   xTaskCreate(
-    hmiTask,    // Task function
-    "HMI Task", // Task name
-    1000,               // Stack size
-    NULL,               // Task parameters
-    1,                  // Task priority
-    NULL                // Task handle
+  xTaskCreate(hmiTask,    // Task function
+              "HMI Task", // Task name
+              1000,       // Stack size
+              NULL,       // Task parameters
+              1,          // Task priority
+              NULL        // Task handle
   );
-   xTaskCreate(
-    lcdTask,    // Task function
-    "LCD Task", // Task name
-    2000,               // Stack size
-    NULL,               // Task parameters
-    1,                  // Task priority
-    NULL                // Task handle
+  xTaskCreate(lcdTask,    // Task function
+              "LCD Task", // Task name
+              2000,       // Stack size
+              NULL,       // Task parameters
+              1,          // Task priority
+              NULL        // Task handle
   );
-
 
   Serial.println("Setup done");
 }
 
-void setSetpoint(float setpoint) {
+static void setTempSetpoint(float setpoint) {
   Serial.print("Setting setpoint to ");
   Serial.println(setpoint);
 
   heater_setpoint = setpoint;
 }
 
-void handleButtons() {
-  {
-    static uint8_t lastState = 0;
-    uint8_t currentState =
-        (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
-
-    if (lastState == 0b11 && currentState == 0b10) {
-      Serial.println("Clockwise rotation");
-      // Clockwise rotation
-      setSetpoint(heater_setpoint + 10);
-    } else if (lastState == 0b11 && currentState == 0b01) {
-      Serial.println("Counter-clockwise rotation");
-      // Counter-clockwise rotation
-      setSetpoint(heater_setpoint - 10);
-    }
-    lastState = currentState;
-  }
-  {
-    static volatile bool lastState = HIGH;
-    bool currentState = digitalRead(PIN_ENCODER_SW);
-    if (lastState == HIGH && currentState == LOW) {
-      Serial.println("Button pressed");
-      // Reset the setpoint to 350 degrees
-      setSetpoint(350);
-    }
-    lastState = currentState;
-  }
-}
-
-static void set_error_flag(uint8_t flag) {
+static void setErrorFlag(uint8_t flag) {
   error_flags |= flag;
 
   // Turn off the PIN_HEATER
@@ -281,57 +247,13 @@ static void set_error_flag(uint8_t flag) {
   }
 }
 
-static float target_temp(bool in_stand) {
+static void clearErrorFlag(uint8_t flag) { error_flags &= ~flag; }
+
+static float calcTargetTemp(bool in_stand) {
   if (in_stand) {
     return 150.0;
   }
   return heater_setpoint;
-}
-
-static void render_lcd() {
-  bool in_stand = digitalRead(PIN_DETECT) == LOW;
-
-  u8g2.firstPage();
-  do {
-    if (error_flags) {
-      u8g2.setFont(u8g2_font_ncenR08_tr);
-      u8g2.setCursor(0, 10);
-    } else {
-      u8g2.setFont(u8g2_font_ncenB10_tr);
-      u8g2.setCursor(0, 12);
-    }
-    u8g2.print(actual_temperature, 2);
-    if (in_stand) {
-      u8g2.print(" // ");
-    } else {
-      u8g2.print(" -> ");
-    }
-    u8g2.print(heater_setpoint, 0);
-    u8g2.print("C");
-    u8g2.setCursor(0, 20);
-    for (uint8_t i = 0; i < ARRAY_SIZE(error_names); i++) {
-      if (error_flags & (1 << i)) {
-        u8g2.print(error_names[i]);
-        u8g2.print(" ");
-      }
-    }
-
-    // Plot a power bar in the bottom of the screen
-    const int bar_x = 0;
-    const int bar_width = u8g2.getDisplayWidth();
-    const int bar_height = 5;
-    const int bar_y = u8g2.getDisplayHeight() - bar_height; // 32 - 5 = 27
-
-    // Calculate the width of the filled part of the bar
-    int filled_width = (power * bar_width);
-
-    // Draw the bar outline
-    u8g2.drawFrame(bar_x, bar_y, bar_width, bar_height);
-
-    // Draw the filled part of the bar
-    u8g2.drawBox(bar_x, bar_y, filled_width, bar_height);
-
-  } while (u8g2.nextPage());
 }
 
 // Uses a 100k NTC thermistor with a 100k pulldown resistor
@@ -355,25 +277,94 @@ static float getAmbientTempCelcius() {
   return temp_kelvin - 273.15;
 }
 
-static void clear_error_flag(uint8_t flag) { error_flags &= ~flag; }
 
-
+// To not do complicated debouncing,
+// I poll the encoder every 10ms and check if the state has changed
+// in a separate task
 void hmiTask(void *pvParameters) {
   while (1) {
-    handleButtons();
+    {
+      static uint8_t lastState = 0;
+      uint8_t currentState =
+          (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
+
+      if (lastState == 0b11 && currentState == 0b10) {
+        Serial.println("Clockwise rotation");
+        // Clockwise rotation
+        setTempSetpoint(heater_setpoint + 10);
+      } else if (lastState == 0b11 && currentState == 0b01) {
+        Serial.println("Counter-clockwise rotation");
+        // Counter-clockwise rotation
+        setTempSetpoint(heater_setpoint - 10);
+      }
+      lastState = currentState;
+    }
+    {
+      static volatile bool lastState = HIGH;
+      bool currentState = digitalRead(PIN_ENCODER_SW);
+      if (lastState == HIGH && currentState == LOW) {
+        Serial.println("Button pressed");
+        // Reset the setpoint to 350 degrees
+        setTempSetpoint(350);
+      }
+      lastState = currentState;
+    }
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
 
+// LCD is using soft i2c and is really really slow,
+// so i just update the screen every 10ms in a separate task
 void lcdTask(void *pvParameters) {
   while (1) {
-    render_lcd();
+    bool in_stand = digitalRead(PIN_DETECT) == LOW;
+
+    u8g2.firstPage();
+    do {
+      if (error_flags) {
+        u8g2.setFont(u8g2_font_ncenR08_tr);
+        u8g2.setCursor(0, 10);
+      } else {
+        u8g2.setFont(u8g2_font_ncenB10_tr);
+        u8g2.setCursor(0, 12);
+      }
+      u8g2.print(actual_temperature, 2);
+      if (in_stand) {
+        u8g2.print(" // ");
+      } else {
+        u8g2.print(" -> ");
+      }
+      u8g2.print(heater_setpoint, 0);
+      u8g2.print("C");
+      u8g2.setCursor(0, 20);
+      for (uint8_t i = 0; i < ARRAY_SIZE(error_names); i++) {
+        if (error_flags & (1 << i)) {
+          u8g2.print(error_names[i]);
+          u8g2.print(" ");
+        }
+      }
+
+      // Plot a power bar in the bottom of the screen
+      const int bar_x = 0;
+      const int bar_width = u8g2.getDisplayWidth();
+      const int bar_height = 5;
+      const int bar_y = u8g2.getDisplayHeight() - bar_height; // 32 - 5 = 27
+
+      // Calculate the width of the filled part of the bar
+      int filled_width = (power * bar_width);
+
+      // Draw the bar outline
+      u8g2.drawFrame(bar_x, bar_y, bar_width, bar_height);
+
+      // Draw the filled part of the bar
+      u8g2.drawBox(bar_x, bar_y, filled_width, bar_height);
+
+    } while (u8g2.nextPage());
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
 
 void loop() {
-
 
   // Calculate frequency in Hz
   static unsigned long previous_ms = 0;
@@ -387,9 +378,9 @@ void loop() {
     previous_frequency_count = frequency_count;
 
     if (frequency > 40 && frequency < 70) {
-      clear_error_flag(ERROR_BAD_FREQUENCY);
+      clearErrorFlag(ERROR_BAD_FREQUENCY);
     } else {
-      set_error_flag(ERROR_BAD_FREQUENCY);
+      setErrorFlag(ERROR_BAD_FREQUENCY);
     }
 
     // Print the frequency
@@ -415,16 +406,16 @@ void loop() {
   if (in_stand != last_in_stand) {
     last_standby_time = millis();
     last_in_stand = in_stand;
-    clear_error_flag(ERROR_STAND_BY);
+    clearErrorFlag(ERROR_STAND_BY);
   }
 
   // If the iron have been out of the stand or in the stand for more than 1
   // minute
   if (millis() - last_standby_time > STANDBY_TIMEOUT) {
-    set_error_flag(ERROR_STAND_BY);
+    setErrorFlag(ERROR_STAND_BY);
   }
 
-  float setpoint = target_temp(in_stand);
+  float setpoint = calcTargetTemp(in_stand);
 
   // Require TEMP_DELAY_MS to settle the voltage
   if ((state == STATE_READING_TEMPERATURE &&
@@ -471,9 +462,9 @@ void loop() {
 
     if (actual_temperature < 20 || actual_temperature > 400) {
       Serial.println("Thermocouple fault(s) detected!");
-      set_error_flag(ERROR_NO_READING);
+      setErrorFlag(ERROR_NO_READING);
     } else {
-      clear_error_flag(ERROR_NO_READING);
+      clearErrorFlag(ERROR_NO_READING);
 
       // Set power level based on temperature using a PID controller
       // PID controller
@@ -508,7 +499,6 @@ void loop() {
   if (error_flags != 0) {
     power = 0.0;
   }
-
 
   delay(1);
 }
