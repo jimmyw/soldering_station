@@ -15,14 +15,19 @@
 #define PIN_DETECT 6
 #define LCD_SCL 21
 #define LCD_SDA 20
+#define PIN_ENCODER_A 9
+#define PIN_ENCODER_B 10
+#define PIN_ENCODER_SW 4
 
 #define PIN_HEATER_ON HIGH
 #define PIN_HEATER_OFF LOW
 
+#define DEBOUNCE_DELAY 100 // Define key debounce delay in milliseconds
+
 const float GAIN =
     201.3; // Amplification gain from the LTC2063 R1 = 200.5 kΩ, R2 = 1.001 kΩ
-//const float THERMOCOUPLE_SENSITIVITY =
-//    41.0; // Type K thermocouple sensitivity in µV/°C
+// const float THERMOCOUPLE_SENSITIVITY =
+//     41.0; // Type K thermocouple sensitivity in µV/°C
 
 const float THERMOCOUPLE_SENSITIVITY =
     42.85; // Type K thermocouple sensitivity in µV/°C
@@ -43,33 +48,40 @@ U8G2_SSD1306_128X32_UNIVISION_F_SW_I2C u8g2(/* rotation =*/U8G2_R0,
                                             /* data=*/LCD_SDA,
                                             /* reset=*/U8X8_PIN_NONE);
 
-uint32_t frequency_count = 0;
-float power = 0.0; // Number between 0.0 and 1.0
+static uint32_t frequency_count = 0;
+static float power = 0.0; // Number between 0.0 and 1.0
 
 // PID constants
-const float Kp = 1.0;  // In practice means 1% power increase per degree, so 100 degrees difference = 100% power
-const float Ki = 0.2;  // Integral gain 0.5% per second, so 100 seconds can adjust 50% power
-const float Kd = 0.2;
+static const float Kp = 1.0; // In practice means 1% power increase per degree,
+                             // so 100 degrees difference = 100% power
+static const float Ki =
+    0.2; // Integral gain 0.5% per second, so 100 seconds can adjust 50% power
+static const float Kd = 0.2;
 
 // PID variables
-float previous_error = 0;
-float integral = 0;
-float heater_setpoint = 350.0;      // Desired temperature in Celsius
-const float integral_limit = 100.0; // Maximum integral value in power %
-uint8_t error_flags = 0;
-uint32_t last_standby_time = 0;
+static float previous_error = 0;
+static float integral = 0;
+static volatile float heater_setpoint = 350.0; // Desired temperature in Celsius
+static const float integral_limit = 100.0; // Maximum integral value in power %
+static uint8_t error_flags = 0;
+static uint32_t last_standby_time = 0;
 static bool last_in_stand = false;
+
+void hmiTask(void *pvParameters);
+void lcdTask(void *pvParameters);
+
 
 #define ERROR_NO_READING 1    // Thermocouple fault
 #define ERROR_BAD_FREQUENCY 2 // Frequency out of range
-#define ERROR_STAND_BY 4      // Iron have not been used for a while and shut down
+#define ERROR_STAND_BY 4 // Iron have not been used for a while and shut down
 const char *error_names[] = {
     "NO_READING",
     "BAD_FREQUENCY",
     "STAND_BY",
 };
 
-
+void handleButtons();
+void handleButtonInterrupt();
 
 // Calibrate the temperature sensor
 // Calibration points is measured at 150°C and 350°C
@@ -79,7 +91,8 @@ float calibrate_temperature(float reported_temperature) {
   float measserd_temperature_350 = 430;
 
   // Calculate the slope and intercept
-  float slope = (measserd_temperature_350 - measserd_temperature_150) / (350.0 - 150.0);
+  float slope =
+      (measserd_temperature_350 - measserd_temperature_150) / (350.0 - 150.0);
   float intercept = measserd_temperature_150 - slope * 150.0;
 
   // Apply the linear correction formula
@@ -169,7 +182,7 @@ void setup() {
 
   // wait for MAX chip to stabilize
   delay(500);
-  Serial.print("Initializing sensor...");
+  Serial.print("Initializing ADC...");
   if (!ads.begin()) {
     Serial.println("Failed to initialize ADS.");
     delay(1000);
@@ -184,6 +197,67 @@ void setup() {
 
   // Pin detect is to see if iron is in the stand. active low, pullup needed
   pinMode(PIN_DETECT, INPUT_PULLUP);
+
+  // Setup rotare encoder
+  pinMode(PIN_ENCODER_A, INPUT_PULLUP);
+  pinMode(PIN_ENCODER_B, INPUT_PULLUP);
+  pinMode(PIN_ENCODER_SW, INPUT_PULLUP);
+
+   xTaskCreate(
+    hmiTask,    // Task function
+    "HMI Task", // Task name
+    1000,               // Stack size
+    NULL,               // Task parameters
+    1,                  // Task priority
+    NULL                // Task handle
+  );
+   xTaskCreate(
+    lcdTask,    // Task function
+    "LCD Task", // Task name
+    2000,               // Stack size
+    NULL,               // Task parameters
+    1,                  // Task priority
+    NULL                // Task handle
+  );
+
+
+  Serial.println("Setup done");
+}
+
+void setSetpoint(float setpoint) {
+  Serial.print("Setting setpoint to ");
+  Serial.println(setpoint);
+
+  heater_setpoint = setpoint;
+}
+
+void handleButtons() {
+  {
+    static uint8_t lastState = 0;
+    uint8_t currentState =
+        (digitalRead(PIN_ENCODER_A) << 1) | digitalRead(PIN_ENCODER_B);
+
+    if (lastState == 0b11 && currentState == 0b10) {
+      Serial.println("Clockwise rotation");
+      // Clockwise rotation
+      setSetpoint(heater_setpoint + 10);
+    } else if (lastState == 0b11 && currentState == 0b01) {
+      Serial.println("Counter-clockwise rotation");
+      // Counter-clockwise rotation
+      setSetpoint(heater_setpoint - 10);
+    }
+    lastState = currentState;
+  }
+  {
+    static volatile bool lastState = HIGH;
+    bool currentState = digitalRead(PIN_ENCODER_SW);
+    if (lastState == HIGH && currentState == LOW) {
+      Serial.println("Button pressed");
+      // Reset the setpoint to 350 degrees
+      setSetpoint(350);
+    }
+    lastState = currentState;
+  }
 }
 
 static void set_error_flag(uint8_t flag) {
@@ -214,7 +288,9 @@ static float target_temp(bool in_stand) {
   return heater_setpoint;
 }
 
-static void render_lcd(float setpoint) {
+static void render_lcd() {
+  bool in_stand = digitalRead(PIN_DETECT) == LOW;
+
   u8g2.firstPage();
   do {
     if (error_flags) {
@@ -225,8 +301,12 @@ static void render_lcd(float setpoint) {
       u8g2.setCursor(0, 12);
     }
     u8g2.print(actual_temperature, 2);
-    u8g2.print(" -> ");
-    u8g2.print(setpoint, 0);
+    if (in_stand) {
+      u8g2.print(" // ");
+    } else {
+      u8g2.print(" -> ");
+    }
+    u8g2.print(heater_setpoint, 0);
     u8g2.print("C");
     u8g2.setCursor(0, 20);
     for (uint8_t i = 0; i < ARRAY_SIZE(error_names); i++) {
@@ -268,8 +348,8 @@ static float getAmbientTempCelcius() {
   steinhart /= 3950.0;                     // 1/B * ln(R/Ro)
 
   // Calculate the temperature in Kelvin from the resistance
-  float temp_kelvin = 1.0 /
-      (steinhart + 1.0 / 298.15); // 1/(1/B * ln(R/Ro) + 1/To)
+  float temp_kelvin =
+      1.0 / (steinhart + 1.0 / 298.15); // 1/(1/B * ln(R/Ro) + 1/To)
 
   // Convert Kelvin to Celsius
   return temp_kelvin - 273.15;
@@ -277,16 +357,23 @@ static float getAmbientTempCelcius() {
 
 static void clear_error_flag(uint8_t flag) { error_flags &= ~flag; }
 
-void loop() {
-  // Print current heater state
-  static enum state_e previous_heater_state;
-  if (state != previous_heater_state) {
-    Serial.print("Heater is ");
-    Serial.println(state == STATE_HEATING               ? "HEAT"
-                   : state == STATE_READING_TEMPERATURE ? "TEMP"
-                                                        : "IDLE");
-    previous_heater_state = state;
+
+void hmiTask(void *pvParameters) {
+  while (1) {
+    handleButtons();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
+}
+
+void lcdTask(void *pvParameters) {
+  while (1) {
+    render_lcd();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
+}
+
+void loop() {
+
 
   // Calculate frequency in Hz
   static unsigned long previous_ms = 0;
@@ -316,9 +403,9 @@ void loop() {
   // Only read the temperature if heater is off
 
   float ambient_temp = getAmbientTempCelcius();
-  //Serial.print("Ambient temperature: ");
-  //Serial.print(ambient_temp);
-  //Serial.println(" °C");
+  // Serial.print("Ambient temperature: ");
+  // Serial.print(ambient_temp);
+  // Serial.println(" °C");
 
   // Calculate standby time
   bool in_stand = digitalRead(PIN_DETECT) == LOW;
@@ -331,13 +418,13 @@ void loop() {
     clear_error_flag(ERROR_STAND_BY);
   }
 
-  // If the iron have been out of the stand or in the stand for more than 1 minute
+  // If the iron have been out of the stand or in the stand for more than 1
+  // minute
   if (millis() - last_standby_time > STANDBY_TIMEOUT) {
     set_error_flag(ERROR_STAND_BY);
   }
 
   float setpoint = target_temp(in_stand);
-
 
   // Require TEMP_DELAY_MS to settle the voltage
   if ((state == STATE_READING_TEMPERATURE &&
@@ -361,13 +448,13 @@ void loop() {
     Serial.print(thermocouple_voltage_mv, 6); // Convert back to mV for
     Serial.println(" mV");
 
-
     // Convert thermocouple voltage to temperature in °C
     float thermocouple_temperature =
         thermocouple_voltage_mv * 1e3 / THERMOCOUPLE_SENSITIVITY; // µV/°C to °C
 
     // Apply polynomial correction to the reported temperature
-    actual_temperature = calibrate_temperature(ambient_temp + thermocouple_temperature);
+    actual_temperature =
+        calibrate_temperature(ambient_temp + thermocouple_temperature);
     Serial.print("Temperature: ");
     Serial.print(thermocouple_temperature, 2);
     Serial.print(" °C corrected: ");
@@ -422,7 +509,6 @@ void loop() {
     power = 0.0;
   }
 
-  render_lcd(setpoint);
 
   delay(1);
 }
