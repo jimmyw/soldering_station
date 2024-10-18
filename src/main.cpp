@@ -315,6 +315,7 @@ void hmiTask(void *pvParameters) {
 
 // LCD is using soft i2c and is really really slow,
 // so i just update the screen every 10ms in a separate task
+// LCD is 128x32 pixels
 void lcdTask(void *pvParameters) {
   while (1) {
     bool in_stand = digitalRead(PIN_DETECT) == LOW;
@@ -325,8 +326,8 @@ void lcdTask(void *pvParameters) {
         u8g2.setFont(u8g2_font_ncenR08_tr);
         u8g2.setCursor(0, 10);
       } else {
-        u8g2.setFont(u8g2_font_ncenB10_tr);
-        u8g2.setCursor(0, 12);
+        u8g2.setFont(u8g2_font_ncenB12_tr);
+        u8g2.setCursor(0, 22);
       }
       u8g2.print(actual_temperature, 2);
       if (in_stand) {
@@ -460,7 +461,7 @@ void loop() {
     Serial.print(setpoint, 2);
     Serial.println(" °C");
 
-    if (actual_temperature < 20 || actual_temperature > 400) {
+    if (actual_temperature < 5 || actual_temperature > 430) {
       Serial.println("Thermocouple fault(s) detected!");
       setErrorFlag(ERROR_NO_READING);
     } else {
