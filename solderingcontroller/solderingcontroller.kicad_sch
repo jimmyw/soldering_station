@@ -6391,16 +6391,6 @@
 	)
 	(wire
 		(pts
-			(xy 86.36 52.07) (xy 110.49 52.07)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "b63e7bf7-5571-4054-a390-8158dad92a45")
-	)
-	(wire
-		(pts
 			(xy 26.67 38.1) (xy 41.91 38.1)
 		)
 		(stroke
@@ -9004,76 +8994,6 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:R")
-		(at 86.36 48.26 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "5365ef69-3e38-4a1f-85e8-0e441d419740")
-		(property "Reference" "R13"
-			(at 88.9 46.9899 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "10k"
-			(at 88.9 49.5299 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" ""
-			(at 84.582 48.26 90)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 86.36 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor"
-			(at 86.36 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "3f8af826-0611-47e0-8403-7bb17926dbcf")
-		)
-		(pin "1"
-			(uuid "7f5401d4-8da9-4682-aa47-a4b47124d741")
-		)
-		(instances
-			(project "solderingcontroller"
-				(path "/9562c3ca-c9e5-4e2d-8a48-bcd20ff65be7"
-					(reference "R13")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "power:GND")
 		(at 25.4 190.5 0)
 		(unit 1)
@@ -10225,72 +10145,6 @@
 			(project ""
 				(path "/9562c3ca-c9e5-4e2d-8a48-bcd20ff65be7"
 					(reference "R7")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "power:+3V3")
-		(at 86.36 44.45 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "b52e0e3a-0d1d-4389-a413-de1ee53c4a45")
-		(property "Reference" "#PWR026"
-			(at 86.36 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "+3V3"
-			(at 86.36 39.37 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Footprint" ""
-			(at 86.36 44.45 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 86.36 44.45 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Power symbol creates a global label with name \"+3V3\""
-			(at 86.36 44.45 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "1"
-			(uuid "3dfa5fd1-09e6-4c53-b0ed-c459183294c2")
-		)
-		(instances
-			(project "solderingcontroller"
-				(path "/9562c3ca-c9e5-4e2d-8a48-bcd20ff65be7"
-					(reference "#PWR026")
 					(unit 1)
 				)
 			)
