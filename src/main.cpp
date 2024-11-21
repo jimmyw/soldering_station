@@ -167,15 +167,8 @@ void setup() {
 
   Serial.println("Hello, World!");
 
-
   // Initialize LCD
   u8g2.begin();
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.setCursor(0, 10);
-  u8g2.print("Hello, World!");
-  u8g2.sendBuffer();
-
 
   Serial.print("Initializing ADC... ");
   Wire.begin(PIN_SDA, PIN_SCL);
@@ -185,7 +178,6 @@ void setup() {
     delay(1000);
   }
   Serial.println("Done");
-
 
   // Setup heater driver
   pinMode(PIN_HEATER, OUTPUT);
@@ -276,7 +268,6 @@ static float getAmbientTempCelcius() {
   return temp_kelvin - 273.15;
 }
 
-
 // To not do complicated debouncing,
 // I poll the encoder every 10ms and check if the state has changed
 // in a separate task
@@ -316,6 +307,13 @@ void hmiTask(void *pvParameters) {
 // so i just update the screen every 10ms in a separate task
 // LCD is 128x32 pixels
 void lcdTask(void *pvParameters) {
+
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(0, 10);
+  u8g2.print("Hello, World!");
+  u8g2.sendBuffer();
+
   while (1) {
 
     u8g2.firstPage();
@@ -389,7 +387,6 @@ void loop() {
     // Serial.print(frequency);
     // Serial.println(" Hz");
   }
-
 
   static float ambient_temp = 0;
   static uint32_t last_ambient_time = 0;
