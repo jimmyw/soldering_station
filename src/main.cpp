@@ -194,7 +194,6 @@ void setup() {
                   CHANGE);
 
   // Pin detect is to see if iron is in the stand. active low, pullup needed
-  pinMode(PIN_DETECT, INPUT_PULLUP);
 
   // Setup rotary encoder
   pinMode(PIN_ENCODER_A, INPUT_PULLUP);
@@ -318,7 +317,6 @@ void hmiTask(void *pvParameters) {
 // LCD is 128x32 pixels
 void lcdTask(void *pvParameters) {
   while (1) {
-    bool in_stand = digitalRead(PIN_DETECT) == LOW;
 
     u8g2.firstPage();
     do {
@@ -330,7 +328,7 @@ void lcdTask(void *pvParameters) {
         u8g2.setCursor(0, 22);
       }
       u8g2.print(actual_temperature, 2);
-      if (in_stand) {
+      if (last_in_stand) {
         u8g2.print(" // ");
       } else {
         u8g2.print(" -> ");
@@ -393,6 +391,7 @@ void loop() {
   }
 
   // Only read the temperature if heater is off
+  pinMode(PIN_DETECT, INPUT_PULLUP);
 
   float ambient_temp = getAmbientTempCelcius();
   // Serial.print("Ambient temperature: ");
@@ -401,7 +400,7 @@ void loop() {
 
   // Calculate standby time
   bool in_stand = digitalRead(PIN_DETECT) == LOW;
-  static bool last_in_stand = in_stand;
+  pinMode(PIN_DETECT, INPUT);
 
   // Detect if the iron is placed in the stand has changed
   if (in_stand != last_in_stand) {
