@@ -393,10 +393,15 @@ void loop() {
   // Only read the temperature if heater is off
   pinMode(PIN_DETECT, INPUT_PULLUP);
 
-  float ambient_temp = getAmbientTempCelcius();
-  // Serial.print("Ambient temperature: ");
-  // Serial.print(ambient_temp);
-  // Serial.println(" °C");
+  static float ambient_temp = 0;
+  static uint32_t last_ambient_time = 0;
+  if (last_ambient_time == 0 || (current_ms - last_ambient_time) > 60000) {
+    last_ambient_time = current_ms;
+    ambient_temp = getAmbientTempCelcius();
+    Serial.print("Ambient temperature: ");
+    Serial.print(ambient_temp);
+    Serial.println(" °C");
+}
 
   // Calculate standby time
   bool in_stand = digitalRead(PIN_DETECT) == LOW;
