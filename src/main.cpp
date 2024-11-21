@@ -424,11 +424,18 @@ void loop() {
   if ((state == STATE_READING_TEMPERATURE &&
        current_ms >= (state_time + TEMP_DELAY_MS)) ||
       (state == STATE_IDLE && current_ms >= (state_time + 5000))) {
-    // unsigned long start_ms = millis();
+    unsigned long start_ms = millis();
     int32_t adc_sum = 0;
+    Serial.print("Reads: ");
     for (int i = 0; i < ADC_FILTERING; i++) {
-      adc_sum += ads.readADC_SingleEnded(0);
+      int32_t read = ads.readADC_SingleEnded(0);
+      adc_sum += read;
+      Serial.print(read);
+      Serial.print(" ");
     }
+    Serial.print("Time: ");
+    Serial.print(millis() - start_ms);
+    Serial.println("ms");
     float voltage_measured_mv =
         ads.computeVolts((float)adc_sum / (float)ADC_FILTERING) * 1000.0;
 
