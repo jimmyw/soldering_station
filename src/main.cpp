@@ -475,7 +475,9 @@ void loop() {
       setErrorFlag(ERROR_NO_READING);
     } else {
       clearErrorFlag(ERROR_NO_READING);
+    }
 
+    if (error_flags == 0) {
       // Set power level based on temperature using a PID controller
       // PID controller
       float error = setpoint - actual_temperature;
@@ -501,13 +503,10 @@ void loop() {
       // Print the power percentage
       Serial.print(" Power: ");
       Serial.println(power);
+    } else {
+      power = 0.0;
     }
     state = STATE_IDLE;
-  }
-
-  // Just so display looks right.
-  if (error_flags != 0) {
-    power = 0.0;
   }
 
   vTaskDelay(1 / portTICK_PERIOD_MS);
