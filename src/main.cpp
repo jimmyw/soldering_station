@@ -33,10 +33,10 @@ const float THERMOCOUPLE_SENSITIVITY =
     42.85; // Type K thermocouple sensitivity in µV/°C
 
 // Time to wait after switching of heater before reading the temperature
-#define TEMP_DELAY_MS 20
+#define TEMP_DELAY_MS 25
 
 // Samples to read for the ADC
-#define ADC_FILTERING 3
+#define ADC_FILTERING 1
 
 #define STANDBY_TIMEOUT (5 * 60000) // 5 minutes
 
