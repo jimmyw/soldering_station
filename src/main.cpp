@@ -506,5 +506,5 @@ void loop() {
     power = 0.0;
   }
 
-  delay(1);
+  vTaskDelay(1 / portTICK_PERIOD_MS);
 }
