@@ -506,7 +506,7 @@ void loop() {
     } else {
       power = 0.0;
     }
-    state = STATE_IDLE;
+    goState(STATE_IDLE);
   }
 
   vTaskDelay(1 / portTICK_PERIOD_MS);
