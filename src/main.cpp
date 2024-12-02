@@ -36,7 +36,7 @@ const float THERMOCOUPLE_SENSITIVITY =
 #define TEMP_DELAY_MS 25
 
 // Samples to read for the ADC
-#define ADC_FILTERING 1
+#define ADC_FILTERING 2
 
 #define STANDBY_TIMEOUT (5 * 60000) // 5 minutes
 
